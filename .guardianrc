@@ -1,0 +1,24 @@
+# Guardian Configuration - Frontend
+
+[limits]
+max_file_lines = 500
+max_function_lines = 50
+
+[type_checking]
+typescript_strict = true
+
+[linting]
+eslint = true
+
+[testing]
+vitest = true
+require_build_success = true
+
+[exclusions]
+exclude_paths = [
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    "*.min.js",
+    "*.min.ts"
+]
