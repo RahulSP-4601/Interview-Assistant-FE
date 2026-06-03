@@ -28,6 +28,7 @@
       "output": "release",
       "buildResources": "assets"
     },
+    "publish": null,
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
