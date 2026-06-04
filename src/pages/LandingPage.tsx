@@ -1,4 +1,96 @@
+import { useState, useEffect } from 'react'
+
+interface ReleaseAsset {
+  name: string
+  browser_download_url: string
+}
+
+interface DownloadUrls {
+  macIntel: string | null
+  macArm: string | null
+  windows: string | null
+}
+
 function LandingPage() {
+  const GITHUB_REPO = 'RahulSP-4601/Interview-Assistant-FE'
+  const [downloadUrls, setDownloadUrls] = useState<DownloadUrls>({
+    macIntel: null,
+    macArm: null,
+    windows: null
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchLatestRelease = async () => {
+      try {
+        const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`)
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch latest release')
+        }
+
+        const data = await response.json()
+        const assets: ReleaseAsset[] = data.assets ?? []
+
+        // Find download URLs for each platform
+        const urls: DownloadUrls = {
+          macIntel: assets.find(asset => asset.name.endsWith('.dmg') && !asset.name.includes('arm64'))?.browser_download_url || null,
+          macArm: assets.find(asset => asset.name.endsWith('.dmg') && asset.name.includes('arm64'))?.browser_download_url || null,
+          windows: assets.find(asset => asset.name.endsWith('.exe'))?.browser_download_url || null
+        }
+
+        setDownloadUrls(urls)
+        setLoading(false)
+      } catch (err) {
+        console.error('Error fetching release:', err)
+        setError('Failed to load download links. Please try again later.')
+        setLoading(false)
+      }
+    }
+
+    fetchLatestRelease()
+  }, [])
+
+  const handleMacDownload = async () => {
+    if (!downloadUrls.macIntel && !downloadUrls.macArm) {
+      alert('Mac download is not available at the moment.')
+      return
+    }
+
+    // Try to detect Apple Silicon using userAgentData (modern API)
+    let isAppleSilicon = false
+
+    try {
+      // @ts-expect-error - userAgentData is not yet in all TypeScript definitions
+      if (navigator.userAgentData?.getHighEntropyValues) {
+        // @ts-expect-error - userAgentData is not yet in all TypeScript definitions
+        const ua = await navigator.userAgentData.getHighEntropyValues(['architecture'])
+        isAppleSilicon = ua.architecture === 'arm' || ua.architecture === 'arm64'
+      }
+    } catch {
+      // Fallback: just use Intel build or whatever is available
+      console.log('Could not detect architecture, using default')
+    }
+
+    // Prefer ARM build on Apple Silicon, fallback to Intel or any available
+    const downloadUrl = isAppleSilicon && downloadUrls.macArm
+      ? downloadUrls.macArm
+      : downloadUrls.macIntel || downloadUrls.macArm
+
+    if (downloadUrl) {
+      window.location.href = downloadUrl
+    }
+  }
+
+  const handleWindowsDownload = () => {
+    if (!downloadUrls.windows) {
+      alert('Windows download is not available at the moment.')
+      return
+    }
+    window.location.href = downloadUrls.windows
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-8">
       <div className="max-w-2xl w-full">
@@ -12,10 +104,20 @@ function LandingPage() {
           </p>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-lg text-red-200 text-center">
+            {error}
+          </div>
+        )}
+
         {/* Download Buttons */}
         <div className="space-y-6">
           {/* Mac Download Button */}
-          <button className="w-full group bg-white hover:bg-gray-50 text-gray-900 rounded-2xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl shadow-xl">
+          <button
+            onClick={handleMacDownload}
+            disabled={loading || (!downloadUrls.macIntel && !downloadUrls.macArm)}
+            className="w-full group bg-white hover:bg-gray-50 text-gray-900 rounded-2xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-6">
                 {/* Apple Icon */}
@@ -25,7 +127,9 @@ function LandingPage() {
                   </svg>
                 </div>
                 <div className="text-left">
-                  <div className="text-2xl font-bold">Download for macOS</div>
+                  <div className="text-2xl font-bold">
+                    {loading ? 'Loading...' : 'Download for macOS'}
+                  </div>
                   <div className="text-base text-gray-600 font-medium mt-1">macOS 10.15 Catalina and newer</div>
                 </div>
               </div>
@@ -36,7 +140,10 @@ function LandingPage() {
           </button>
 
           {/* Windows Download Button */}
-          <button className="w-full group bg-blue-600 hover:bg-blue-700 text-white rounded-2xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl shadow-xl">
+          <button
+            onClick={handleWindowsDownload}
+            disabled={loading || !downloadUrls.windows}
+            className="w-full group bg-blue-600 hover:bg-blue-700 text-white rounded-2xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-6">
                 {/* Windows Icon */}
@@ -46,7 +153,9 @@ function LandingPage() {
                   </svg>
                 </div>
                 <div className="text-left">
-                  <div className="text-2xl font-bold">Download for Windows</div>
+                  <div className="text-2xl font-bold">
+                    {loading ? 'Loading...' : 'Download for Windows'}
+                  </div>
                   <div className="text-base text-blue-100 font-medium mt-1">Windows 10 and Windows 11</div>
                 </div>
               </div>
@@ -55,6 +164,18 @@ function LandingPage() {
               </div>
             </div>
           </button>
+        </div>
+
+        {/* Additional Info */}
+        <div className="mt-8 text-center">
+          <a
+            href={`https://github.com/${GITHUB_REPO}/releases`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-purple-300 hover:text-purple-200 underline text-sm"
+          >
+            View all releases on GitHub
+          </a>
         </div>
       </div>
     </div>
